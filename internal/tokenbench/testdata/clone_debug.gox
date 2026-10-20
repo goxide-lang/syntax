@@ -1,0 +1,46 @@
+package main
+
+use fmt;
+
+#[derive(Clone, Debug)]
+type Item struct { Text string }
+type (
+    Alias = Item
+    #[derive(Debug)]
+    Grouped struct { Value int }
+)
+#[derive(Clone, Debug)]
+type Record struct { Values []Item; Table map[string][]Item; Fixed [1]Alias; Choice Option[[]Item]; Outcome Result[Item, []int] }
+#[derive(Clone, Debug)]
+pub struct account { pub id int; name string }
+#[derive(Clone, Debug)]
+pub enum State { Empty, Pair(Item, []int), Named { Name string, Count int } }
+
+func main() {
+    value := Record{Values: []Item{Item{Text: "a"}}, Table: map[string][]Item{"key": []Item{Item{Text: "b"}}}, Fixed: [1]Alias{Item{Text: "c"}}, Choice: Option[[]Item]::Some([]Item{}), Outcome: Result[Item, []int]::Err(nil)}
+    assigned := value
+    assigned.Values[0].Text = "shared"
+    copy := CloneRecord(&value)
+    copy.Values[0].Text = "copy"
+    copy.Table["key"][0].Text = "changed"
+    copy.Fixed[0].Text = "fixed"
+    fmt::Println(value.Values[0].Text, value.Table["key"][0].Text, value.Fixed[0].Text)
+    fmt::Println(DebugRecord(&value))
+    state := State::Pair(Item{Text: "quoted"}, []int{1, 2})
+    cloned := CloneState(&state)
+    match cloned { State::Pair(_, nums) => { nums[0] = 9 }, _ => {} }
+    fmt::Println(DebugState(&state), DebugState(&cloned))
+    absent := Record{Outcome: Result[Item, []int]::Ok(Item{})}
+    nilcopy := CloneRecord(&absent)
+    fmt::Println(nilcopy.Values == nil, nilcopy.Table == nil, match nilcopy.Choice { Option::None => "none", Option::Some(_) => "some" })
+    present := Record{Values: []Item{}, Table: map[string][]Item{}, Choice: Option[[]Item]::Some(nil), Outcome: Result[Item, []int]::Ok(Item{})}
+    emptycopy := CloneRecord(&present)
+    fmt::Println(emptycopy.Values == nil, emptycopy.Table == nil, match emptycopy.Choice { Option::None => false, Option::Some(v) => v == nil })
+    private := account{id: 7, name: "hidden"}
+    fmt::Println(Debugaccount(&private))
+    grouped := Grouped{Value: 11}
+    fmt::Println(DebugGrouped(&grouped))
+    empty := State::Empty
+    named := State::Named{Name: "secret", Count: 2}
+    fmt::Println(DebugState(&empty), DebugState(&named))
+}

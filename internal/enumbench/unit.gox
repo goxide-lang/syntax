@@ -1,0 +1,44 @@
+package enumbench
+
+pub enum UnitKind {
+    UnitIdent,
+    UnitKeyword,
+    UnitLiteral,
+    UnitPunct,
+    UnitSemicolon,
+    UnitGroup,
+    UnitFragment,
+}
+
+pub func MakeUnitKind(index uint8) UnitKind {
+    switch index {
+    case 0:
+        return UnitKind::UnitIdent
+    case 1:
+        return UnitKind::UnitKeyword
+    case 2:
+        return UnitKind::UnitLiteral
+    case 3:
+        return UnitKind::UnitPunct
+    case 4:
+        return UnitKind::UnitSemicolon
+    case 5:
+        return UnitKind::UnitGroup
+    case 6:
+        return UnitKind::UnitFragment
+    default:
+        panic("enumbench: invalid unit kind")
+    }
+}
+
+pub func UnitKindScore(value UnitKind) uint64 {
+    return match value {
+        UnitKind::UnitIdent => uint64(17),
+        UnitKind::UnitKeyword => uint64(31),
+        UnitKind::UnitLiteral => uint64(47),
+        UnitKind::UnitPunct => uint64(61),
+        UnitKind::UnitSemicolon => uint64(79),
+        UnitKind::UnitGroup => uint64(97),
+        UnitKind::UnitFragment => uint64(109),
+    }
+}
