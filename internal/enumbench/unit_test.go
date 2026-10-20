@@ -35,12 +35,17 @@ type unitUnknown struct{}
 
 func (*unitUnknown) isUnitKind() {}
 
+type unitValueUnknown struct{}
+
+func (unitValueUnknown) isUnitValueKind() {}
+
 func TestUnitRepresentationBehavior(t *testing.T) {
 	want := [...]uint64{17, 31, 47, 61, 79, 97, 109}
 	for i, score := range want {
 		numeric := MakeUnitNumeric(uint8(i))
 		numericInt := MakeUnitNumericInt(uint8(i))
 		boxed := MakeUnitKind(uint8(i))
+		value := MakeUnitValueKind(uint8(i))
 		if got := UnitNumericScore(numeric); got != score {
 			t.Errorf("numeric %d: got %d, want %d", i, got, score)
 		}
@@ -50,13 +55,27 @@ func TestUnitRepresentationBehavior(t *testing.T) {
 		if got := UnitNumericIntScore(numericInt); got != score {
 			t.Errorf("numeric int %d: got %d, want %d", i, got, score)
 		}
+		if got := UnitValueKindScore(value); got != score {
+			t.Errorf("value %d: got %d, want %d", i, got, score)
+		}
 	}
 	for _, invalid := range []uint8{7, 255} {
 		unitMustPanic(t, func() { MakeUnitNumeric(invalid) })
 		unitMustPanic(t, func() { MakeUnitNumericInt(invalid) })
 		unitMustPanic(t, func() { MakeUnitKind(invalid) })
+		unitMustPanic(t, func() { MakeUnitValueKind(invalid) })
 		unitMustPanic(t, func() { UnitNumericScore(UnitNumeric(invalid)) })
 		unitMustPanic(t, func() { UnitNumericIntScore(UnitNumericInt(invalid)) })
+	}
+	// Value receivers also put the marker in pointer method sets. Such pointers
+	// are not valid value variants and must be rejected by this experiment.
+	for _, invalid := range []UnitValueKind{
+		nil, unitValueUnknown{}, UnitValueKind(&UnitValueIdent{}),
+		(*UnitValueIdent)(nil), (*UnitValueKeyword)(nil), (*UnitValueLiteral)(nil),
+		(*UnitValuePunct)(nil), (*UnitValueSemicolon)(nil), (*UnitValueGroup)(nil),
+		(*UnitValueFragment)(nil),
+	} {
+		unitMustPanic(t, func() { UnitValueKindScore(invalid) })
 	}
 	unitMustPanic(t, func() { UnitNumericIntScore(-1) })
 	// These paths are correctness checks, not timed valid-input workloads.
@@ -78,22 +97,24 @@ func TestUnitRepresentationBehavior(t *testing.T) {
 func TestUnitWorkloadAndSizes(t *testing.T) {
 	indices := unitIndices()
 	var histogram [unitVariantCount]int
-	var numericTotal, numericIntTotal, boxedTotal uint64
+	var numericTotal, numericIntTotal, boxedTotal, valueTotal uint64
 	for _, index := range indices {
 		histogram[index]++
 		numericTotal += UnitNumericScore(MakeUnitNumeric(index))
 		numericIntTotal += UnitNumericIntScore(MakeUnitNumericInt(index))
 		boxedTotal += UnitKindScore(MakeUnitKind(index))
+		valueTotal += UnitValueKindScore(MakeUnitValueKind(index))
 	}
 	for variant, count := range histogram {
 		if count != unitBatchSize/unitVariantCount {
 			t.Errorf("variant %d appears %d times", variant, count)
 		}
 	}
-	if numericTotal != boxedTotal || numericIntTotal != boxedTotal {
-		t.Fatalf("different workload results: %d, %d, %d", numericTotal, numericIntTotal, boxedTotal)
+	if numericTotal != boxedTotal || numericIntTotal != boxedTotal || valueTotal != boxedTotal {
+		t.Fatalf("different workload results: %d, %d, %d, %d", numericTotal, numericIntTotal, boxedTotal, valueTotal)
 	}
 	t.Logf("slot sizes: uint8 enum=%d, native int=%d, native uint=%d, interface enum=%d; empty variant=%d, pointer=%d bytes",
 		unsafe.Sizeof(UnitNumeric(0)), unsafe.Sizeof(UnitNumericInt(0)), unsafe.Sizeof(uint(0)),
 		unsafe.Sizeof(UnitKind(nil)), unsafe.Sizeof(UnitIdent{}), unsafe.Sizeof((*UnitIdent)(nil)))
+	t.Logf("value variant=%d, value interface=%d bytes", unsafe.Sizeof(UnitValueIdent{}), unsafe.Sizeof(UnitValueKind(nil)))
 }

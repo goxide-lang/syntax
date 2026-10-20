@@ -21,10 +21,12 @@ var (
 	unitNumericSink      UnitNumeric
 	unitNumericIntSink   UnitNumericInt
 	unitBoxedSink        UnitKind
+	unitValueSink        UnitValueKind
 	unitChecksumSink     uint64
 	unitNumericBatchSink []UnitNumeric
 	unitIntBatchSink     []UnitNumericInt
 	unitBoxedBatchSink   []UnitKind
+	unitValueBatchSink   []UnitValueKind
 )
 
 func unitReport(b *testing.B, values int, width uintptr) {
@@ -38,6 +40,7 @@ func resetUnitBatchSinks(b *testing.B) {
 		unitNumericBatchSink = nil
 		unitIntBatchSink = nil
 		unitBoxedBatchSink = nil
+		unitValueBatchSink = nil
 	}
 	clear()
 	b.Cleanup(clear)
@@ -85,6 +88,20 @@ func BenchmarkUnitConstruct(b *testing.B) {
 			}
 		}
 		unitBoxedSink = result
+		unitReport(b, 1, unsafe.Sizeof(result))
+	})
+	b.Run("SealedValue", func(b *testing.B) {
+		var result UnitValueKind
+		position := 0
+		b.ReportAllocs()
+		for b.Loop() {
+			result = MakeUnitValueKind(indices[position])
+			position++
+			if position == len(indices) {
+				position = 0
+			}
+		}
+		unitValueSink = result
 		unitReport(b, 1, unsafe.Sizeof(result))
 	})
 }
@@ -145,6 +162,24 @@ func BenchmarkUnitDispatch(b *testing.B) {
 		unitChecksumSink = total
 		unitReport(b, 1, unsafe.Sizeof(UnitKind(nil)))
 	})
+	b.Run("SealedValue", func(b *testing.B) {
+		values := make([]UnitValueKind, len(indices))
+		for i, index := range indices {
+			values[i] = MakeUnitValueKind(index)
+		}
+		var total uint64
+		position := 0
+		b.ReportAllocs()
+		for b.Loop() {
+			total += UnitValueKindScore(values[position])
+			position++
+			if position == len(values) {
+				position = 0
+			}
+		}
+		unitChecksumSink = total
+		unitReport(b, 1, unsafe.Sizeof(UnitValueKind(nil)))
+	})
 }
 
 func BenchmarkUnitBatchBuild(b *testing.B) {
@@ -190,6 +225,20 @@ func BenchmarkUnitBatchBuild(b *testing.B) {
 		}
 		unitBoxedBatchSink = result
 		unitReport(b, len(indices), unsafe.Sizeof(UnitKind(nil)))
+	})
+	b.Run("SealedValue", func(b *testing.B) {
+		resetUnitBatchSinks(b)
+		var result []UnitValueKind
+		b.ReportAllocs()
+		for b.Loop() {
+			values := make([]UnitValueKind, len(indices))
+			for i, index := range indices {
+				values[i] = MakeUnitValueKind(index)
+			}
+			result = values
+		}
+		unitValueBatchSink = result
+		unitReport(b, len(indices), unsafe.Sizeof(UnitValueKind(nil)))
 	})
 }
 
@@ -239,5 +288,20 @@ func BenchmarkUnitTraversal(b *testing.B) {
 		}
 		unitChecksumSink = total
 		unitReport(b, len(indices), unsafe.Sizeof(UnitKind(nil)))
+	})
+	b.Run("SealedValue", func(b *testing.B) {
+		values := make([]UnitValueKind, len(indices))
+		for i, index := range indices {
+			values[i] = MakeUnitValueKind(index)
+		}
+		var total uint64
+		b.ReportAllocs()
+		for b.Loop() {
+			for _, value := range values {
+				total += UnitValueKindScore(value)
+			}
+		}
+		unitChecksumSink = total
+		unitReport(b, len(indices), unsafe.Sizeof(UnitValueKind(nil)))
 	})
 }
