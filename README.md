@@ -1,13 +1,14 @@
 # Goxide syntax
 
-Goxide 的公共语法工具，Go module 为 `github.com/goxide-lang/syntax`，需要 Go 1.27。当前提供手写 Go 的 `token` 和 `proc_macro`，仅依赖 Go 标准库；不需要先运行 Goxide 编译器。
+Goxide 的公共语法工具，Go module 为 `github.com/goxide-lang/syntax`，需要 Go 1.27。当前提供手写 Go 的 `token`、`proc_macro` 和 `syn`，仅依赖 Go 标准库；不需要先运行 Goxide 编译器。
 
 | 包 | 用途 |
 | --- | --- |
 | `token` | 不可变 token 树、Goxide 词法解析、构造、诊断位置、绑定上下文和调用内引用表 |
 | `proc_macro` | 宏作者的 Context、Output、诊断，以及一次调用的 JSON 编解码和静态入口分派 |
+| `syn` | 单个 type/struct/enum 声明的只读语法视图、字段、变体及保留原 token 的回放 |
 
-这一批是 RFC 0030 的公共库基础；工作区采用相邻 checkout 时可阅读 [RFC 原文](../goxide/docs/rfcs/0030-procedural-macros.md)。编译器转换桥、源码登记、依赖角色构建、协议内容核验、CLI/浏览器 WASI 宿主尚未接入；`syn`、`quote` 不在本批范围内。
+编译器接入合同见 [RFC 0030](../goxide/docs/rfcs/0030-procedural-macros.md)（工作区相邻 checkout）。转换桥、源码登记、依赖角色构建、协议内容核验及项目 CLI 的受限 WASI 宿主已完成本地联调；浏览器宿主与 `quote` 尚未实现。
 
 ## 普通 Go 工具
 
@@ -61,7 +62,13 @@ func answer(ctx pm.Context, item token.TokenStream) pm.Output {
 
 调用方创建 `token.Scope` 和两个绑定上下文，用 `pm.NewRequest(scope, config)` 捕获输入并冻结引用表。随后通过 `WriteRequest` 发出一个完整 JSON 文档；宏 command 使用 `ReadRequest`、`Dispatch` 和 `WriteResponse`；调用方用原 Request 调用 `ReadResponse` 验证响应。可运行的普通 Go 示例见 [example_test.go](proc_macro/example_test.go)，独立 command 见 [testdata/command/main.go](proc_macro/testdata/command/main.go)。
 
-`Dispatch` 接受固定的 `[]pm.Entry`，每项只能设置 Function、Attribute、Derive 中的一个 handler。重复入口、种类不匹配和未知入口会返回错误。SDK 不捕获 handler panic，执行失败由未来宿主处理。
+`Dispatch` 接受固定的 `[]pm.Entry`，每项只能设置 Function、Attribute、Derive 中的一个 handler。重复入口、种类不匹配和未知入口会返回错误。SDK 不捕获 handler panic，执行失败由宿主处理。
+
+## 声明解析
+
+`syn.Parse` 接受一个声明的 TokenStream，提供名称、属性、显式可见性、泛型和 where 原文，以及结构体字段或 enum 变体。字段保留多名声明、嵌入形式和 tag；变体区分 unit、tuple 和具名字段。分组 type 声明及其他 item 当前返回带位置的错误。
+
+各节点的 `ToTokens()` 返回原 token，保留绑定、Span、自动分号及片段引用。`Span()` 是首 token 的诊断锚。类型视图只描述写出的语法，不解析别名或查询 impl；`StructFields()` 只查看直接写出的 struct。属性参数、数组长度、函数签名组和 interface body 保留为 token，由编译器完成其余语法与语义检查。
 
 ## 引用、诊断与边界
 
